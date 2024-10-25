@@ -39,14 +39,16 @@ function extractModelFromMessage(message: Message): { model: string; content: st
 }
 
 export function streamText(messages: Messages, env: Env, options?: StreamingOptions) {
-  console.log("inside streamText env:"+env);
-  console.log("inside streamText messages:"+messages);
+  console.log("inside streamText env:", env);
+  console.log("inside streamText messages:", messages);
+
   let currentModel = DEFAULT_MODEL;
   const processedMessages = messages.map((message) => {
     if (message.role === 'user') {
       const { model, content } = extractModelFromMessage(message);
+      console.log("Extracted model:", model);
       if (model && MODEL_LIST.find((m) => m.name === model)) {
-        currentModel = model; // Update the current model
+        currentModel = model;
       }
       return { ...message, content };
     }
@@ -54,14 +56,12 @@ export function streamText(messages: Messages, env: Env, options?: StreamingOpti
   });
 
   const provider = MODEL_LIST.find((model) => model.name === currentModel)?.provider || DEFAULT_PROVIDER;
+  console.log("Using model:", currentModel, "with provider:", provider);
 
   return _streamText({
     model: getModel(provider, currentModel, env),
     system: getSystemPrompt(),
     maxTokens: MAX_TOKENS,
-    // headers: {
-    //   'anthropic-beta': 'max-tokens-3-5-sonnet-2024-07-15',
-    // },
     messages: convertToCoreMessages(processedMessages),
     ...options,
   });
