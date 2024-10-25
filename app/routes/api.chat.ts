@@ -33,8 +33,9 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
         messages.push({ role: 'assistant', content });
         messages.push({ role: 'user', content: CONTINUE_PROMPT });
-
+        console.log("debut execution du code : const result = await streamText(messages, context.cloudflare.env, options);")
         const result = await streamText(messages, context.cloudflare.env, options);
+        console.log("fin execution code: const result = await streamText(messages, context.cloudflare.env, options);")
 
         return stream.switchSource(result.toAIStream());
       },
@@ -51,7 +52,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       },
     });
   } catch (error) {
-    console.log(error);
+    console.log("Erro:"+error);
 
     throw new Response(null, {
       status: 500,
