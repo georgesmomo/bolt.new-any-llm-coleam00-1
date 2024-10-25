@@ -39,6 +39,8 @@ function extractModelFromMessage(message: Message): { model: string; content: st
 }
 
 export function streamText(messages: Messages, env: Env, options?: StreamingOptions) {
+  console.log("inside streamText env:"+env);
+  console.log("inside streamText messages:"+messages);
   let currentModel = DEFAULT_MODEL;
   const processedMessages = messages.map((message) => {
     if (message.role === 'user') {
