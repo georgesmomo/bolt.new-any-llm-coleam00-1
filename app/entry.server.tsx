@@ -1,81 +1,75 @@
 import type { AppLoadContext, EntryContext } from '@remix-run/cloudflare';
 import { RemixServer } from '@remix-run/react';
 import { isbot } from 'isbot';
-import { renderToReadableStream } from 'react-dom/server';
+import { renderToPipeableStream } from 'react-dom/server';
 import { renderHeadToString } from 'remix-island';
 import { Head } from './root';
 import { themeStore } from '~/lib/stores/theme';
-import { initializeModelList } from '~/utils/constants';
+import { PassThrough } from 'stream';
 
-export default async function handleRequest(
+// Adaptation pour Vercel
+function createReadableStreamFromPassThrough(passThrough: PassThrough): ReadableStream {
+  return new ReadableStream({
+    start(controller) {
+      passThrough.on('data', (chunk) => controller.enqueue(chunk));
+      passThrough.on('end', () => controller.close());
+      passThrough.on('error', (error) => controller.error(error));
+    },
+    cancel() {
+      passThrough.destroy();
+    }
+  });
+}
+
+export default function handleRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
   remixContext: EntryContext,
   _loadContext: AppLoadContext,
 ) {
-  await initializeModelList();
+  return new Promise((resolve, reject) => {
+    let didError = false;
+    const passThrough = new PassThrough();
 
-  const readable = await renderToReadableStream(<RemixServer context={remixContext} url={request.url} />, {
-    signal: request.signal,
-    onError(error: unknown) {
-      console.error(error);
-      responseStatusCode = 500;
-    },
-  });
+    const { pipe, abort } = renderToPipeableStream(
+      <RemixServer context={remixContext} url={request.url} />,
+      {
+        onShellReady() {
+          responseHeaders.set('Content-Type', 'text/html');
+          responseHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
+          responseHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
 
-  const body = new ReadableStream({
-    start(controller) {
-      const head = renderHeadToString({ request, remixContext, Head });
+          // Injection de l'en-tête HTML et du thème
+          passThrough.write(
+            `<!DOCTYPE html><html lang="en" data-theme="${themeStore.value}"><head>${renderHeadToString({
+              request,
+              remixContext,
+              Head,
+            })}</head><body><div id="root" class="w-full h-full">`
+          );
 
-      controller.enqueue(
-        new Uint8Array(
-          new TextEncoder().encode(
-            `<!DOCTYPE html><html lang="en" data-theme="${themeStore.value}"><head>${head}</head><body><div id="root" class="w-full h-full">`,
-          ),
-        ),
-      );
+          pipe(passThrough);
 
-      const reader = readable.getReader();
+          passThrough.end(`</div></body></html>`);
 
-      function read() {
-        reader
-          .read()
-          .then(({ done, value }) => {
-            if (done) {
-              controller.enqueue(new Uint8Array(new TextEncoder().encode(`</div></body></html>`)));
-              controller.close();
+          const readableStream = createReadableStreamFromPassThrough(passThrough);
 
-              return;
-            }
-
-            controller.enqueue(value);
-            read();
-          })
-          .catch((error) => {
-            controller.error(error);
-            readable.cancel();
-          });
+          resolve(
+            new Response(readableStream, {
+              status: didError ? 500 : responseStatusCode,
+              headers: responseHeaders,
+            })
+          );
+        },
+        onError(error) {
+          didError = true;
+          console.error('Streaming error:', error);
+        },
       }
-      read();
-    },
+    );
 
-    cancel() {
-      readable.cancel();
-    },
-  });
-
-  if (isbot(request.headers.get('user-agent') || '')) {
-    await readable.allReady;
-  }
-
-  responseHeaders.set('Content-Type', 'text/html');
-
-  responseHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
-  responseHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
-
-  return new Response(body, {
-    headers: responseHeaders,
-    status: responseStatusCode,
+    // Arrêter le flux si la requête est annulée
+    request.signal?.addEventListener('abort', abort);
   });
 }
