@@ -16,18 +16,20 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   const stream = new SwitchableStream();
   console.log("Before try");
   try {
-    console.log("inseide try");
+    console.log("inside try");
     const options: StreamingOptions = {
       toolChoice: 'none',
       onFinish: async ({ text: content, finishReason }) => {
+        console.log("inside try 1");
         if (finishReason !== 'length') {
+          console.log("inside try 2");
           return stream.close();
         }
-
+        console.log("inside try 3");
         if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
           throw Error('Cannot continue message: Maximum segments reached');
         }
-
+        console.log("inside try 4");
         const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
 
         console.log(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
