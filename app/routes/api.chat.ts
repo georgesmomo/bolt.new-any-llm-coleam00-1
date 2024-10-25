@@ -14,8 +14,9 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   const { messages } = await request.json<{ messages: Messages }>();
 
   const stream = new SwitchableStream();
-
+  console.log("Before try");
   try {
+    console.log("inseide try");
     const options: StreamingOptions = {
       toolChoice: 'none',
       onFinish: async ({ text: content, finishReason }) => {
@@ -52,7 +53,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       },
     });
   } catch (error) {
-    console.log("Erro:"+error);
+    console.log(error);
 
     throw new Response(null, {
       status: 500,
