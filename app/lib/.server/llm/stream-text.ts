@@ -24,6 +24,10 @@ export type Messages = Message[];
 
 export type StreamingOptions = Omit<Parameters<typeof _streamText>[0], 'model'>;
 
+/**
+ * Extracts the model from a message if specified in the format "[Model: model_name]"
+ * and returns the model along with the cleaned-up content.
+ */
 function extractModelFromMessage(message: Message): { model: string; content: string } {
   const modelRegex = /^\[Model: (.*?)\]\n\n/;
   const match = message.content.match(modelRegex);
@@ -34,32 +38,36 @@ function extractModelFromMessage(message: Message): { model: string; content: st
     return { model, content };
   }
 
-  // Default model if not specified
+  // Use default model if none is specified
   return { model: DEFAULT_MODEL, content: message.content };
 }
 
+/**
+ * Streams text from the provided messages, selecting the appropriate model and provider.
+ */
 export function streamText(messages: Messages, env: Env, options?: StreamingOptions) {
   let currentModel = DEFAULT_MODEL;
+
+  // Process each message, extracting models and updating currentModel if a valid one is found
   const processedMessages = messages.map((message) => {
     if (message.role === 'user') {
       const { model, content } = extractModelFromMessage(message);
-      if (model && MODEL_LIST.find((m) => m.name === model)) {
-        currentModel = model; // Update the current model
+      if (model && MODEL_LIST.some((m) => m.name === model)) {
+        currentModel = model; // Update the current model based on the user's specification
       }
       return { ...message, content };
     }
     return message;
   });
 
+  // Determine the provider for the current model, falling back to the default if not found
   const provider = MODEL_LIST.find((model) => model.name === currentModel)?.provider || DEFAULT_PROVIDER;
 
+  // Stream the text using the selected model and options
   return _streamText({
     model: getModel(provider, currentModel, env),
     system: getSystemPrompt(),
     maxTokens: MAX_TOKENS,
-    // headers: {
-    //   'anthropic-beta': 'max-tokens-3-5-sonnet-2024-07-15',
-    // },
     messages: convertToCoreMessages(processedMessages),
     ...options,
   });
