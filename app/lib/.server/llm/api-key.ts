@@ -41,7 +41,10 @@ export function getBaseURL(cloudflareEnv: Env, provider: string) {
   }
 }
   */
-
+console.log("The provider:");
+  console.log(provider);
+  console.log("The env:");
+  console.log(env);
 switch (provider) {
   case 'Anthropic':
     return process.env.ANTHROPIC_API_KEY || cloudflareEnv.ANTHROPIC_API_KEY;
